@@ -1,0 +1,40 @@
+{% extends 'board/manage_base.html' %}
+{% block title %}{{ led.title }}{% endblock %}
+{% block body %}
+<div class="panel">
+  <div class="toolbar">
+    <h2 style="margin:0">{{ led.icon }} {{ led.title }}
+      <span class="count-pill">共 {{ total }} 条</span></h2>
+    <div style="display:flex;gap:12px;align-items:center">
+      <form class="search" method="get">
+        <input type="text" name="q" value="{{ q }}" placeholder="搜索关键字…">
+        <button class="btn ghost sm" type="submit">搜索</button>
+        {% if q %}<a class="btn ghost sm" href="{% url 'ledger_list' led.slug %}">清空</a>{% endif %}
+      </form>
+      <a class="btn" href="{% url 'ledger_new' led.slug %}">+ 新增</a>
+    </div>
+  </div>
+
+  {% if rows %}
+  <table>
+    <thead>
+      <tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}<th style="text-align:right">操作</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        {% for cell in r.cells %}<td>{{ cell }}</td>{% endfor %}
+        <td style="text-align:right">
+          <a class="btn ghost sm" href="{% url 'ledger_edit' led.slug r.obj.pk %}">编辑</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    {% if q %}没有匹配「{{ q }}」的记录。{% else %}暂无记录,点右上角「+ 新增」开始录入。{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

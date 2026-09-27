@@ -1,0 +1,285 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>质检数据快速录入 · 产线质检看板</title>
+  <style>
+    :root{--bg:#0a0f1a;--panel:#111a2b;--line:#1e2b44;--txt:#e6eefc;--sub:#8aa0c6;
+          --good:#22c55e;--warn:#f59e0b;--bad:#ef4444;--accent:#38bdf8;}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:linear-gradient(160deg,#070b14,#0a0f1a);color:var(--txt);
+         font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:24px}
+    a{color:inherit;text-decoration:none}
+    header{display:flex;justify-content:space-between;align-items:center;
+           border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px}
+    header h1{font-size:24px;letter-spacing:2px}
+    header .sub{color:var(--sub);font-size:13px}
+    nav{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+    nav a{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+          padding:9px 16px;font-size:14px;color:var(--sub);transition:.15s}
+    nav a:hover{border-color:var(--accent);color:var(--txt)}
+    nav a.active{color:var(--txt);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+    .layout{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px;align-items:start}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+    .panel h2{font-size:17px;margin-bottom:16px;color:var(--accent);font-weight:600;
+              display:flex;justify-content:space-between;align-items:center}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px}
+    .row{display:flex;flex-direction:column;gap:6px}
+    .row.full{grid-column:1/-1}
+    label{color:var(--sub);font-size:13px}
+    .fld{background:#0c1424;border:1px solid var(--line);border-radius:9px;color:var(--txt);
+         padding:10px 12px;font-size:14px;width:100%}
+    .fld:focus{outline:none;border-color:var(--accent)}
+    select.fld{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--sub) 50%),
+               linear-gradient(135deg,var(--sub) 50%,transparent 50%);
+               background-position:calc(100% - 18px) 18px,calc(100% - 13px) 18px;
+               background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+    .judge{display:flex;gap:10px}
+    .judge label{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
+                 background:#0c1424;border:1px solid var(--line);border-radius:9px;
+                 padding:11px;font-size:15px;color:var(--txt);cursor:pointer;transition:.15s;user-select:none}
+    .judge input{display:none}
+    .judge label.on-good{border-color:var(--good);color:var(--good);box-shadow:inset 0 0 0 1px var(--good)}
+    .judge label.on-bad{border-color:var(--bad);color:var(--bad);box-shadow:inset 0 0 0 1px var(--bad)}
+    .btn{display:inline-block;background:var(--accent);color:#04121f;border:none;border-radius:9px;
+         padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;transition:.15s}
+    .btn:hover{filter:brightness(1.12)}
+    .btn.ghost{background:transparent;color:var(--sub);border:1px solid var(--line);font-weight:500;padding:9px 16px}
+    .btn.ghost:hover{border-color:var(--accent);color:var(--txt)}
+    .actions{display:flex;gap:12px;margin-top:22px;align-items:center}
+    .hint{color:var(--sub);font-size:12px}
+    .err{color:var(--bad);font-size:12px;min-height:14px}
+    .pill{background:#0c1424;border:1px solid var(--line);border-radius:20px;padding:3px 12px;font-size:12px;color:var(--sub)}
+    .warnbar{background:rgba(245,158,11,.12);border:1px solid var(--warn);color:#ffe6b3;
+             border-radius:9px;padding:12px 16px;font-size:14px;margin-bottom:18px}
+    .warnbar a{color:var(--accent);text-decoration:underline}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}
+    th{color:var(--sub);font-weight:500}
+    tbody tr:hover{background:#0e1626}
+    .tag{display:inline-block;border-radius:6px;padding:1px 8px;font-size:12px}
+    .tag.g{background:rgba(34,197,94,.15);color:var(--good)}
+    .tag.b{background:rgba(239,68,68,.15);color:var(--bad)}
+    .empty{color:var(--sub);padding:22px 0;text-align:center}
+    .flash{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-80px);
+           background:rgba(34,197,94,.15);border:1px solid var(--good);color:#c9f7d8;
+           border-radius:10px;padding:10px 20px;font-size:14px;transition:.3s;z-index:9;opacity:0}
+    .flash.show{transform:translateX(-50%) translateY(0);opacity:1}
+    footer{margin-top:28px;color:var(--sub);font-size:12px;text-align:center}
+    @media(max-width:600px){
+      .form-grid{grid-template-columns:minmax(0,1fr)}
+      .row{min-width:0}
+      .row input,.row select,.row textarea{min-width:0;font-size:16px}
+      .actions{flex-wrap:wrap}
+      header{flex-wrap:wrap;gap:10px}
+    }
+  </style>
+</head>
+<body>
+  <div class="flash" id="flash"></div>
+  <header>
+    <h1>质检数据快速录入</h1>
+    <div class="sub">某企业 · 演示数据(全脱敏) · 端口 18804</div>
+  </header>
+
+  <nav>
+    <a href="{% url 'dashboard' %}">← 大屏看板</a>
+    <a href="{% url 'capture' %}" class="active">⚡ 快速录入</a>
+    <a href="{% url 'records' %}">📋 质检流水</a>
+    <a href="{% url 'ledger_index' %}">⚙ 基础台账</a>
+  </nav>
+
+  {% if not has_master %}
+  <div class="warnbar">
+    还没有可用的<b>产品批次</b>或<b>工位</b>主数据,无法录入质检记录。
+    请先到 <a href="{% url 'ledger_index' %}">基础台账管理</a> 建好工位与批次。
+  </div>
+  {% endif %}
+
+  <div class="layout">
+    <!-- 录入表单 -->
+    <section class="panel">
+      <h2>录入一条质检判定 <span class="pill">今日已录 <b id="todayCount">{{ today_count }}</b> 条</span></h2>
+      <form id="capForm" method="post" action="{% url 'capture' %}">
+        {% csrf_token %}
+        <div class="form-grid">
+          <div class="row">
+            <label>批次</label>
+            {{ form.batch }}
+            <div class="err">{{ form.batch.errors|striptags }}</div>
+          </div>
+          <div class="row">
+            <label>工位</label>
+            {{ form.station }}
+            <div class="err">{{ form.station.errors|striptags }}</div>
+          </div>
+
+          <div class="row full">
+            <label>判定</label>
+            <div class="judge" id="judge">
+              {% for r in form.is_qualified %}<label>{{ r.tag }}{{ r.choice_label }}</label>{% endfor %}
+            </div>
+          </div>
+
+          <div class="row full" id="defectRow">
+            <label>缺陷类型(不良时必填)</label>
+            {{ form.defect }}
+            <div class="err">{{ form.defect.errors|striptags }}</div>
+          </div>
+
+          <div class="row">
+            <label>数量</label>
+            {{ form.quantity }}
+          </div>
+          <div class="row">
+            <label>检验时间</label>
+            {{ form.inspected_at }}
+          </div>
+          <div class="row">
+            <label>产品/工单编号(可空)</label>
+            {{ form.serial }}
+          </div>
+          <div class="row">
+            <label>质检员(可空)</label>
+            {{ form.inspector }}
+          </div>
+          <div class="row full">
+            <label>备注(可空)</label>
+            {{ form.note }}
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn" id="saveBtn">保存并继续（Ctrl+Enter）</button>
+          <span class="hint">连续录入时自动沿用「批次 / 工位 / 质检员」,只改判定与数量即可。</span>
+        </div>
+      </form>
+    </section>
+
+    <!-- 本次 / 最近流水 -->
+    <section class="panel">
+      <h2>最近录入 <a href="{% url 'records' %}" class="btn ghost" style="font-size:12px;padding:5px 12px">查看全部</a></h2>
+      <table>
+        <thead><tr><th>时间</th><th>批次</th><th>工位</th><th>判定</th><th>数量</th></tr></thead>
+        <tbody id="recentBody">
+          {% for r in recent %}
+          <tr>
+            <td>{{ r.time }}</td><td>{{ r.batch }}</td><td>{{ r.station }}</td>
+            <td>{% if r.qualified %}<span class="tag g">合格</span>{% else %}<span class="tag b">{{ r.defect|default:"不良" }}</span>{% endif %}</td>
+            <td>{{ r.quantity }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="empty">暂无记录,快录一条吧。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <footer>数据均为虚构演示 · 一句话开发 · 产线质检不良率看板</footer>
+
+  <script>
+  (function(){
+    var form=document.getElementById('capForm');
+    var judge=document.getElementById('judge');
+    var defectRow=document.getElementById('defectRow');
+    var defectSel=document.querySelector('[name=defect]');
+    var qtyInput=document.querySelector('[name=quantity]');
+    var timeInput=document.querySelector('[name=inspected_at]');
+    var recentBody=document.getElementById('recentBody');
+    var flash=document.getElementById('flash');
+    var todayCount=document.getElementById('todayCount');
+    var saveBtn=document.getElementById('saveBtn');
+
+    function csrf(){var m=document.querySelector('[name=csrfmiddlewaretoken]');return m?m.value:'';}
+
+    // 判定联动:高亮选中态 + 不良才显示缺陷选择
+    function syncJudge(){
+      var radios=judge.querySelectorAll('input');
+      radios.forEach(function(r){
+        var lab=r.closest('label');
+        lab.classList.remove('on-good','on-bad');
+        if(r.checked){lab.classList.add(r.value==='1'?'on-good':'on-bad');}
+      });
+      var bad=judge.querySelector('input:checked');
+      var isBad = bad && bad.value==='0';
+      defectRow.style.display = isBad ? '' : 'none';
+      if(!isBad){ defectSel.value=''; }
+    }
+    judge.addEventListener('change',syncJudge);
+
+    function showFlash(msg,ok){
+      flash.textContent=msg;
+      flash.style.borderColor = ok?'var(--good)':'var(--bad)';
+      flash.style.background = ok?'rgba(34,197,94,.15)':'rgba(239,68,68,.15)';
+      flash.style.color = ok?'#c9f7d8':'#ffd3d3';
+      flash.classList.add('show');
+      setTimeout(function(){flash.classList.remove('show');},1800);
+    }
+
+    function prependRow(row){
+      var empty=recentBody.querySelector('.empty');
+      if(empty){empty.closest('tr').remove();}
+      var tr=document.createElement('tr');
+      var verdict = row.qualified ? '<span class="tag g">合格</span>'
+                    : '<span class="tag b">'+(row.defect||'不良')+'</span>';
+      tr.innerHTML='<td>'+row.time+'</td><td>'+row.batch+'</td><td>'+row.station+'</td><td>'+verdict+'</td><td>'+row.quantity+'</td>';
+      recentBody.insertBefore(tr,recentBody.firstChild);
+      while(recentBody.children.length>15){recentBody.removeChild(recentBody.lastChild);}
+    }
+
+    function clearErrs(){document.querySelectorAll('.err').forEach(function(e){e.textContent='';});}
+    function showErrs(errs){
+      for(var k in errs){
+        var f=document.querySelector('[name='+k+']');
+        var box=f?f.closest('.row').querySelector('.err'):null;
+        if(box){box.textContent=(errs[k]||[]).join(' ');}
+      }
+    }
+
+    function resetForVolume(){
+      // 连续快录:保留 批次/工位/质检员/时间,重置判定=合格、数量=1、清缺陷/序列号
+      qtyInput.value=1;
+      var g=judge.querySelector('input[value="1"]'); if(g){g.checked=true;}
+      defectSel.value='';
+      var serial=document.querySelector('[name=serial]'); if(serial){serial.value='';}
+      var note=document.querySelector('[name=note]'); if(note){note.value='';}
+      syncJudge();
+    }
+
+    form.addEventListener('submit',function(e){
+      e.preventDefault();
+      clearErrs();
+      saveBtn.disabled=true;
+      var fd=new FormData(form);
+      fetch('{% url "capture_save" %}',{method:'POST',body:fd,
+             headers:{'X-CSRFToken':csrf(),'X-Requested-With':'XMLHttpRequest'}})
+        .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+        .then(function(res){
+          if(res.j.ok){
+            prependRow(res.j.row);
+            todayCount.textContent=res.j.today_count;
+            showFlash('已录入 ✓  '+res.j.row.batch+' · '+res.j.row.station,true);
+            resetForVolume();
+            var b=document.querySelector('[name=batch]'); if(b){b.focus();}
+          }else{
+            showErrs(res.j.errors||{});
+            showFlash('未保存,请检查必填项',false);
+          }
+        })
+        .catch(function(){showFlash('网络异常,请重试',false);})
+        .finally(function(){saveBtn.disabled=false;});
+    });
+
+    // Ctrl/Cmd+Enter 快速提交
+    document.addEventListener('keydown',function(e){
+      if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();form.requestSubmit();}
+    });
+
+    syncJudge();
+  })();
+  </script>
+</body>
+</html>

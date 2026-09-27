@@ -1,0 +1,33 @@
+{% extends 'board/manage_base.html' %}
+{% block title %}{% if is_new %}新增{% else %}编辑{% endif %} · {{ led.title }}{% endblock %}
+{% block body %}
+<div class="panel">
+  <h2>{{ led.icon }} {% if is_new %}新增{{ led.title }}{% else %}编辑:{{ obj }}{% endif %}</h2>
+
+  {% if form.non_field_errors %}
+    <div class="err" style="margin-bottom:14px">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-grid">
+      {% for field in form %}
+        <div class="row {% if field.name == 'description' or field.name == 'remark' %}full{% endif %}">
+          {% if field.field.widget.input_type == 'checkbox' %}
+            <div class="chk-row">{{ field }}<label for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+          {% else %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          {% endif %}
+          {% if field.errors %}<div class="err">{{ field.errors|striptags }}</div>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="actions">
+      <button class="btn" type="submit">保存</button>
+      <a class="btn ghost" href="{% url 'ledger_list' led.slug %}">取消</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

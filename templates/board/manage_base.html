@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}基础台账管理{% endblock %} · 产线质检看板</title>
+  <style>
+    :root{--bg:#0a0f1a;--panel:#111a2b;--line:#1e2b44;--txt:#e6eefc;--sub:#8aa0c6;
+          --good:#22c55e;--warn:#f59e0b;--bad:#ef4444;--accent:#38bdf8;}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:linear-gradient(160deg,#070b14,#0a0f1a);color:var(--txt);
+         font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:24px}
+    a{color:inherit;text-decoration:none}
+    header{display:flex;justify-content:space-between;align-items:center;
+           border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px}
+    header h1{font-size:24px;letter-spacing:2px}
+    header .sub{color:var(--sub);font-size:13px}
+    nav{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+    nav a{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+          padding:9px 16px;font-size:14px;color:var(--sub);transition:.15s}
+    nav a:hover{border-color:var(--accent);color:var(--txt)}
+    nav a.active{color:var(--txt);border-color:var(--accent);
+                 box-shadow:inset 0 0 0 1px var(--accent)}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+    .panel h2{font-size:17px;margin-bottom:16px;color:var(--accent);font-weight:600}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{text-align:left;padding:10px 10px;border-bottom:1px solid var(--line)}
+    th{color:var(--sub);font-weight:500}
+    tbody tr:hover{background:#0e1626}
+    .btn{display:inline-block;background:var(--accent);color:#04121f;border:none;border-radius:9px;
+         padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+    .btn:hover{filter:brightness(1.12)}
+    .btn.ghost{background:transparent;color:var(--sub);border:1px solid var(--line);font-weight:500}
+    .btn.ghost:hover{border-color:var(--accent);color:var(--txt)}
+    .btn.sm{padding:5px 12px;font-size:13px}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .search{display:flex;gap:8px}
+    .fld,.search input{background:#0c1424;border:1px solid var(--line);border-radius:9px;
+         color:var(--txt);padding:9px 12px;font-size:14px;width:100%}
+    .fld:focus,.search input:focus{outline:none;border-color:var(--accent)}
+    .search input{width:240px}
+    .empty{color:var(--sub);padding:26px 0;text-align:center}
+    .msgs{list-style:none;margin-bottom:16px}
+    .msgs li{background:rgba(34,197,94,.12);border:1px solid var(--good);color:#c9f7d8;
+             border-radius:9px;padding:10px 14px;font-size:14px;margin-bottom:8px}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 22px;max-width:760px}
+    .form-grid .row{display:flex;flex-direction:column;gap:6px}
+    .form-grid .row.full{grid-column:1/-1}
+    .form-grid label{color:var(--sub);font-size:13px}
+    .form-grid .chk{width:18px;height:18px;accent-color:var(--accent)}
+    .chk-row{display:flex;align-items:center;gap:10px}
+    .err{color:var(--bad);font-size:12px}
+    .actions{display:flex;gap:12px;margin-top:24px}
+    .count-pill{background:#0c1424;border:1px solid var(--line);border-radius:20px;
+                padding:3px 12px;font-size:12px;color:var(--sub)}
+    footer{margin-top:28px;color:var(--sub);font-size:12px;text-align:center}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>基础台账管理</h1>
+    <div class="sub">某企业 · 演示数据(全脱敏) · 端口 18804</div>
+  </header>
+
+  <nav>
+    <a href="{% url 'dashboard' %}">← 大屏看板</a>
+    <a href="{% url 'capture' %}">⚡ 快速录入</a>
+    <a href="{% url 'records' %}">📋 质检流水</a>
+    <a href="{% url 'ledger_index' %}" class="{% if active == 'index' %}active{% endif %}">台账总览</a>
+    {% for l in ledgers %}
+      <a href="{% url 'ledger_list' l.slug %}"
+         class="{% if led and led.slug == l.slug %}active{% endif %}">{{ l.icon }} {{ l.title }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if messages %}
+  <ul class="msgs">
+    {% for m in messages %}<li>{{ m }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% block body %}{% endblock %}
+
+  <footer>数据均为虚构演示 · 一句话开发 · 产线质检不良率看板</footer>
+</body>
+</html>

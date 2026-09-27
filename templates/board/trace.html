@@ -1,0 +1,388 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>班次不良追溯 · 缺陷帕累托 —— 产线质检不良率看板</title>
+  <style>
+    :root{--bg:#0a0f1a;--panel:#111a2b;--line:#1e2b44;--txt:#e6eefc;--sub:#8aa0c6;
+          --good:#22c55e;--warn:#f59e0b;--bad:#ef4444;--accent:#38bdf8;}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:linear-gradient(160deg,#070b14,#0a0f1a);color:var(--txt);
+         font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:24px}
+    a{color:inherit}
+    header{display:flex;justify-content:space-between;align-items:center;gap:16px;
+           border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;flex-wrap:wrap}
+    header h1{font-size:24px;letter-spacing:2px}
+    header .sub{color:var(--sub);font-size:13px}
+    .nav{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .nav a{border-radius:10px;padding:9px 16px;text-decoration:none;font-size:14px;border:1px solid var(--line)}
+    .nav a.primary{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:700}
+    .nav a.ghost{background:var(--panel);color:var(--accent)}
+    .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+    .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+    .seg a{padding:7px 14px;font-size:13px;text-decoration:none;color:var(--sub)}
+    .seg a.on{background:var(--accent);color:#04121f;font-weight:700}
+    .controls select{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+                     border-radius:10px;padding:7px 12px;font-size:13px}
+    .live{margin-left:auto;display:flex;align-items:center;gap:12px;color:var(--sub);font-size:12px}
+    .dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good);
+         display:inline-block;animation:pulse 1.6s infinite}
+    .dot.off{background:var(--sub);box-shadow:none;animation:none}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .live button{background:var(--panel);color:var(--accent);border:1px solid var(--line);
+                 border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
+    /* —— 结论条 —— */
+    .verdict{border-radius:14px;padding:14px 18px;margin-bottom:18px;border:1px solid var(--line);
+             background:var(--panel);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    .verdict .vi{font-size:22px}
+    .verdict .vt{font-size:16px;font-weight:800;letter-spacing:1px}
+    .verdict .vs{color:var(--sub);font-size:13px}
+    .verdict.bad{border-color:var(--bad);background:linear-gradient(90deg,rgba(239,68,68,.14),var(--panel))}
+    .verdict.warn{border-color:var(--warn);background:linear-gradient(90deg,rgba(245,158,11,.12),var(--panel))}
+    .verdict.good{border-color:var(--good)}
+    /* —— 班次卡片 —— */
+    .shift-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+    .scard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+           cursor:pointer;transition:border-color .25s,transform .1s;position:relative}
+    .scard:hover{transform:translateY(-2px)}
+    .scard.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+    .scard .sc-top{display:flex;justify-content:space-between;align-items:baseline}
+    .scard .sc-name{font-size:17px;font-weight:700}
+    .scard .sc-span{color:var(--sub);font-size:12px}
+    .scard .sc-rate{font-size:32px;font-weight:800;margin:8px 0 2px}
+    .sc-rate.good{color:var(--good)}.sc-rate.warn{color:var(--warn)}.sc-rate.bad{color:var(--bad)}
+    .scard .sc-meta{color:var(--sub);font-size:12px}
+    .bar{height:8px;border-radius:6px;background:#1b2740;overflow:hidden;margin:10px 0}
+    .bar>i{display:block;height:100%;transition:width .5s ease}
+    .bar>i.good{background:linear-gradient(90deg,#16a34a,#22c55e)}
+    .bar>i.warn{background:linear-gradient(90deg,#d97706,#f59e0b)}
+    .bar>i.bad{background:linear-gradient(90deg,#dc2626,#ef4444)}
+    .worst{font-size:12px;color:var(--sub)}
+    .worst b{color:var(--txt)}
+    .crown{position:absolute;top:-10px;right:12px;font-size:12px;background:var(--bad);color:#fff;
+           padding:2px 9px;border-radius:20px;font-weight:700}
+    /* —— 下钻明细 —— */
+    .drill{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;font-size:13px}
+    .drill h4{color:var(--accent);font-size:12px;font-weight:600;margin:6px 0 4px}
+    .drow{display:flex;justify-content:space-between;gap:8px;padding:3px 0;color:var(--sub)}
+    .drow b{color:var(--txt);font-weight:600}
+    .sev{display:inline-block;font-size:11px;padding:0 7px;border-radius:20px;border:1px solid}
+    .sev.critical{color:var(--bad);border-color:var(--bad)}
+    .sev.major{color:var(--warn);border-color:var(--warn)}
+    .sev.minor{color:var(--sub);border-color:var(--line)}
+    /* —— 帕累托 —— */
+    .grid{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+    .panel h2{font-size:16px;margin-bottom:4px;color:var(--accent);font-weight:600;
+              display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+    .panel h2 .hint{color:var(--sub);font-size:12px;font-weight:400}
+    #pareto-wrap{position:relative;width:100%;height:320px;margin-top:8px}
+    #pareto-canvas{width:100%;height:100%;display:block}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+    th{color:var(--sub);font-weight:500}
+    tr.vital{background:rgba(56,189,248,.06)}
+    tr.vital td:first-child{border-left:3px solid var(--accent)}
+    .rank{display:inline-flex;width:22px;height:22px;border-radius:6px;align-items:center;
+          justify-content:center;font-size:12px;font-weight:700;background:#1b2740;color:var(--sub)}
+    .rank.top1{background:var(--bad);color:#fff}.rank.top2{background:var(--warn);color:#20130a}
+    .rank.top3{background:#3b82f6;color:#fff}
+    .cum{font-weight:700;color:var(--accent)}
+    .vtag{font-size:11px;color:#04121f;background:var(--accent);border-radius:20px;padding:1px 8px;font-weight:700}
+    .empty{color:var(--sub);padding:20px 0}
+    .legend{display:flex;gap:16px;color:var(--sub);font-size:12px;margin-top:10px;flex-wrap:wrap}
+    .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+    footer{margin-top:22px;color:var(--sub);font-size:12px;text-align:center}
+    .flash{animation:flash .6s ease}
+    @keyframes flash{0%{background:rgba(56,189,248,.18)}100%{background:transparent}}
+    @media(max-width:900px){.shift-row,.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔎 班次不良追溯 · 缺陷帕累托</h1>
+    <div class="nav">
+      <a class="primary" href="/">📊 返回大屏</a>
+      <a class="ghost" href="/capture/">⚡ 快速录入</a>
+      <a class="ghost" href="/capture/records/">📋 质检流水</a>
+      <div class="sub">某企业 · 演示数据(全脱敏) · 端口 18804</div>
+    </div>
+  </header>
+
+  <!-- 控制条:时间窗 / 产线 / 实时 -->
+  <div class="controls">
+    <div class="seg">
+      {% for key, label in windows %}
+        <a class="{% if key == window %}on{% endif %}"
+           href="?window={{ key }}{% if line %}&line={{ line }}{% endif %}{% if shift %}&shift={{ shift }}{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <select onchange="location.href='?window={{ window }}'+(this.value?'&line='+encodeURIComponent(this.value):'')+'{% if shift %}&shift={{ shift }}{% endif %}'">
+      <option value="">全部产线</option>
+      {% for l in lines %}
+        <option value="{{ l }}" {% if l == line %}selected{% endif %}>{{ l }}</option>
+      {% endfor %}
+    </select>
+    <span class="sub" style="font-size:12px">班次划分:晚班 00–08 · 早班 08–16 · 中班 16–24</span>
+    <div class="live">
+      <span>数据窗:{{ window_label }} · 更新于 <b id="gen">{{ generated_at }}</b></span>
+      <span class="dot" id="dot"></span>
+      <button id="toggle">⏸ 暂停实时</button>
+    </div>
+  </div>
+
+  <!-- 结论条:头号班次 -->
+  {% if worst_shift %}
+  <div class="verdict {{ worst_shift.level }}" id="verdict">
+    <span class="vi">🎯</span>
+    <div>
+      <div class="vt" id="v-title">头号追溯:{{ worst_shift.label }}({{ worst_shift.span }})不良率 {{ worst_shift.rate }}% 最高</div>
+      <div class="vs" id="v-sub">
+        该班检验 {{ worst_shift.total }} · 不良 {{ worst_shift.bad }} · 占全部不良 {{ worst_shift.share }}%
+        {% if worst_shift.worst %}· 头号缺陷「{{ worst_shift.worst.name }}」{{ worst_shift.worst.n }} 件{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 班次卡片(点击 → 帕累托按该班过滤) -->
+  <div class="shift-row" id="shift-row">
+    {% for s in shifts %}
+    <div class="scard {% if s.key == shift %}sel{% endif %}" data-shift="{{ s.key }}">
+      {% if worst_shift and s.key == worst_shift.key %}<span class="crown">头号班次</span>{% endif %}
+      <div class="sc-top">
+        <div><span class="sc-name">{{ s.label }}</span> <span class="sc-span">{{ s.span }}</span></div>
+        <span class="sub" style="font-size:12px">占全部不良 {{ s.share }}%</span>
+      </div>
+      <div class="sc-rate {{ s.level }}" data-role="rate">{{ s.rate }}%</div>
+      <div class="sc-meta" data-role="meta">检验 {{ s.total }} · 不良 {{ s.bad }} · 缺陷 {{ s.defect_kind }} 种</div>
+      <div class="bar"><i class="{{ s.level }}" style="width:{{ s.rate }}%"></i></div>
+      {% if s.worst %}
+      <div class="worst">头号缺陷 <b>{{ s.worst.name }}</b>
+        <span class="sev {{ s.worst.severity }}">{{ s.worst.severity_display }}</span> · {{ s.worst.n }} 件</div>
+      {% else %}
+      <div class="worst">本班暂无不良</div>
+      {% endif %}
+      <div class="drill">
+        <h4>▸ 该班各工位(降序)</h4>
+        {% for st in s.stations %}
+          <div class="drow"><span>{{ st.name }} <span class="sub">{{ st.operator }}</span></span>
+            <span><b class="sc-rate {{ st.level }}" style="font-size:13px">{{ st.rate }}%</b>
+              <span class="sub">({{ st.bad }}/{{ st.total }})</span></span></div>
+        {% empty %}<div class="drow">—</div>{% endfor %}
+        <h4>▸ 该班缺陷 TOP</h4>
+        {% for d in s.defects %}
+          <div class="drow"><span><b>{{ d.name }}</b>
+            <span class="sev {{ d.severity }}">{{ d.severity_display }}</span></span>
+            <span><b>{{ d.n }}</b> <span class="sub">件 · {{ d.share }}%</span></span></div>
+        {% empty %}<div class="drow">—</div>{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- 帕累托 -->
+  <div class="grid">
+    <div class="panel">
+      <h2>缺陷帕累托图 <span class="hint" id="pareto-scope">范围:{{ pareto.shift_label }} · 抓 <b id="vital-n">{{ pareto.vital_count }}</b> 种消八成不良</span></h2>
+      <div id="pareto-wrap"><canvas id="pareto-canvas"></canvas></div>
+      <div class="legend">
+        <span><i style="background:linear-gradient(90deg,#dc2626,#ef4444)"></i>各缺陷不良数(柱·降序)</span>
+        <span><i style="background:#38bdf8"></i>累计占比(折线)</span>
+        <span><i style="background:#f59e0b"></i>80% 关键少数线</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>帕累托明细 <span class="hint">累计 ≤80% 为「关键少数」<span class="vtag">优先治理</span></span></h2>
+      <table>
+        <thead><tr><th>#</th><th>缺陷</th><th>严重度</th><th>不良数</th><th>占比</th><th>累计</th></tr></thead>
+        <tbody id="pareto-body">
+          {% for d in pareto.items %}
+          <tr class="{% if d.vital %}vital{% endif %}">
+            <td><span class="rank {% if d.rank == 1 %}top1{% elif d.rank == 2 %}top2{% elif d.rank == 3 %}top3{% endif %}">{{ d.rank }}</span></td>
+            <td>{{ d.name }}{% if d.vital %} <span class="vtag">关键</span>{% endif %}</td>
+            <td><span class="sev {{ d.severity }}">{{ d.severity_display }}</span></td>
+            <td><b>{{ d.n }}</b></td>
+            <td>{{ d.share }}%</td>
+            <td class="cum">{{ d.cum_share }}%</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="empty">暂无不良数据</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>产线质检不良率看板 · 班次不良追溯与缺陷帕累托 · 数据每 10 秒实时刷新 · 全脱敏演示</footer>
+
+  {{ shifts|json_script:"init-shifts" }}
+  {{ pareto|json_script:"init-pareto" }}
+  {{ worst_shift|json_script:"init-worst" }}
+
+  <script>
+  (function(){
+    const WINDOW = "{{ window }}", LINE = "{{ line }}";
+    let SHIFT = "{{ shift }}";
+    let live = true, timer = null;
+
+    const $ = (s,r=document)=>r.querySelector(s);
+    const esc = t => String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const cls = lv => lv==='bad'?'bad':lv==='warn'?'warn':'good';
+
+    // —— 帕累托 Canvas 绘制:柱(降序不良数)+ 累计折线 + 80% 线 ——
+    let lastPareto = null;
+    function drawPareto(p){
+      lastPareto = p;
+      const cvs = $('#pareto-canvas'), wrap = $('#pareto-wrap');
+      const dpr = window.devicePixelRatio || 1;
+      const W = wrap.clientWidth, H = wrap.clientHeight;
+      cvs.width = W*dpr; cvs.height = H*dpr;
+      const ctx = cvs.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,W,H);
+      const items = (p && p.items) || [];
+      const padL=44, padR=44, padT=18, padB=54;
+      const cw = W-padL-padR, ch = H-padT-padB;
+      const gx = x => padL + x, gy = y => padT + ch - y;
+
+      if(!items.length){ ctx.fillStyle='#8aa0c6'; ctx.font='14px sans-serif';
+        ctx.fillText('暂无不良数据', padL, padT+ch/2); return; }
+
+      const maxN = Math.max(...items.map(d=>d.n), 1);
+      const n = items.length;
+      const slot = cw/n, bw = Math.min(46, slot*0.6);
+
+      // 网格 + 左右 Y 轴刻度(左=数量, 右=占比 0-100%)
+      ctx.strokeStyle='#1e2b44'; ctx.fillStyle='#8aa0c6'; ctx.font='11px sans-serif';
+      ctx.lineWidth=1;
+      for(let i=0;i<=4;i++){
+        const yy = gy(ch*i/4);
+        ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(W-padR,yy); ctx.stroke();
+        ctx.textAlign='right'; ctx.fillText(Math.round(maxN*i/4), padL-6, yy+3);
+        ctx.textAlign='left';  ctx.fillText((i*25)+'%', W-padR+6, yy+3);
+      }
+
+      // 80% 关键少数线(右轴刻度)
+      const y80 = gy(ch*0.8);
+      ctx.strokeStyle='#f59e0b'; ctx.setLineDash([6,4]); ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(padL,y80); ctx.lineTo(W-padR,y80); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='#f59e0b'; ctx.textAlign='left'; ctx.fillText('80%', padL+2, y80-4);
+
+      // 柱
+      items.forEach((d,i)=>{
+        const x = gx(slot*i + (slot-bw)/2);
+        const h = ch * (d.n/maxN);
+        const grad = ctx.createLinearGradient(0, gy(0), 0, gy(h));
+        grad.addColorStop(0,'#dc2626'); grad.addColorStop(1, d.vital?'#38bdf8':'#7f1d1d');
+        ctx.fillStyle = d.vital ? ctx.createLinearGradient(0,gy(0),0,gy(h)) : '#4a2230';
+        if(d.vital){ const g2=ctx.createLinearGradient(0,gy(0),0,gy(h));
+          g2.addColorStop(0,'#ef4444'); g2.addColorStop(1,'#dc2626'); ctx.fillStyle=g2; }
+        ctx.fillRect(x, gy(h), bw, h);
+        // 柱顶数值
+        ctx.fillStyle='#e6eefc'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+        ctx.fillText(d.n, x+bw/2, gy(h)-5);
+        // X 轴标签(缺陷名,截断)
+        ctx.fillStyle='#8aa0c6';
+        let nm = d.name.length>5 ? d.name.slice(0,5)+'…' : d.name;
+        ctx.save(); ctx.translate(x+bw/2, padT+ch+14); ctx.rotate(-0.32);
+        ctx.textAlign='right'; ctx.fillText(nm, 0, 0); ctx.restore();
+      });
+
+      // 累计折线(按右轴 0-100% 映射)
+      ctx.strokeStyle='#38bdf8'; ctx.lineWidth=2; ctx.beginPath();
+      const pts = items.map((d,i)=>[gx(slot*i + slot/2), gy(ch*(d.cum_share/100))]);
+      pts.forEach((pt,i)=> i? ctx.lineTo(pt[0],pt[1]) : ctx.moveTo(pt[0],pt[1]));
+      ctx.stroke();
+      pts.forEach((pt,i)=>{
+        ctx.fillStyle= items[i].vital ? '#38bdf8' : '#7f93b5';
+        ctx.beginPath(); ctx.arc(pt[0],pt[1],3.5,0,7); ctx.fill();
+        ctx.fillStyle='#38bdf8'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+        ctx.fillText(items[i].cum_share+'%', pt[0], pt[1]-8);
+      });
+    }
+
+    // —— 用轮询数据刷新班次卡片 + 结论 + 帕累托表 ——
+    function flash(el){ if(!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+
+    function refreshShifts(shifts, worst){
+      shifts.forEach(s=>{
+        const card = document.querySelector(`.scard[data-shift="${s.key}"]`);
+        if(!card) return;
+        const rate = $('[data-role="rate"]', card);
+        if(rate && rate.textContent !== s.rate+'%'){ flash(card); }
+        if(rate){ rate.textContent = s.rate+'%'; rate.className = 'sc-rate '+cls(s.level); rate.dataset.role='rate'; }
+        const meta = $('[data-role="meta"]', card);
+        if(meta) meta.textContent = `检验 ${s.total} · 不良 ${s.bad} · 缺陷 ${s.defect_kind} 种`;
+        const bar = $('.bar>i', card);
+        if(bar){ bar.className = cls(s.level); bar.style.width = s.rate+'%'; }
+      });
+      const v = $('#verdict');
+      if(v && worst){
+        v.className = 'verdict '+cls(worst.level);
+        $('#v-title').textContent = `头号追溯:${worst.label}(${worst.span})不良率 ${worst.rate}% 最高`;
+        let sub = `该班检验 ${worst.total} · 不良 ${worst.bad} · 占全部不良 ${worst.share}%`;
+        if(worst.worst) sub += ` · 头号缺陷「${worst.worst.name}」${worst.worst.n} 件`;
+        $('#v-sub').textContent = sub;
+      }
+    }
+
+    function refreshParetoTable(p){
+      const body = $('#pareto-body'); if(!body) return;
+      const items = p.items||[];
+      if(!items.length){ body.innerHTML = '<tr><td colspan="6" class="empty">暂无不良数据</td></tr>'; }
+      else{
+        body.innerHTML = items.map(d=>{
+          const rc = d.rank===1?'top1':d.rank===2?'top2':d.rank===3?'top3':'';
+          return `<tr class="${d.vital?'vital':''}">
+            <td><span class="rank ${rc}">${d.rank}</span></td>
+            <td>${esc(d.name)}${d.vital?' <span class="vtag">关键</span>':''}</td>
+            <td><span class="sev ${d.severity}">${esc(d.severity_display)}</span></td>
+            <td><b>${d.n}</b></td><td>${d.share}%</td><td class="cum">${d.cum_share}%</td></tr>`;
+        }).join('');
+      }
+      $('#vital-n').textContent = p.vital_count;
+      $('#pareto-scope').innerHTML = `范围:${esc(p.shift_label)} · 抓 <b id="vital-n">${p.vital_count}</b> 种消八成不良`;
+      drawPareto(p);
+    }
+
+    function poll(){
+      if(!live) return;
+      const qs = `?window=${encodeURIComponent(WINDOW)}${LINE?'&line='+encodeURIComponent(LINE):''}${SHIFT?'&shift='+encodeURIComponent(SHIFT):''}`;
+      fetch('/api/trace/'+qs).then(r=>r.json()).then(d=>{
+        refreshShifts(d.shifts||[], d.worst_shift);
+        refreshParetoTable(d.pareto||{items:[]});
+        $('#gen').textContent = d.generated_at || '';
+      }).catch(()=>{});
+    }
+
+    // 班次卡片点击 → 切换帕累托过滤范围(带上当前时间窗/产线,刷新页面保持服务端口径一致)
+    $('#shift-row').addEventListener('click', e=>{
+      const card = e.target.closest('.scard'); if(!card) return;
+      const key = card.dataset.shift;
+      const next = (SHIFT === key) ? '' : key;   // 再点一次取消过滤
+      let url = `?window=${encodeURIComponent(WINDOW)}${LINE?'&line='+encodeURIComponent(LINE):''}${next?'&shift='+encodeURIComponent(next):''}`;
+      location.href = url;
+    });
+
+    // 暂停/继续
+    $('#toggle').addEventListener('click', ()=>{
+      live = !live;
+      $('#toggle').textContent = live ? '⏸ 暂停实时' : '▶ 继续实时';
+      $('#dot').classList.toggle('off', !live);
+      if(live) poll();
+    });
+
+    // 首屏用注入数据画一次,再起轮询
+    const P0 = JSON.parse($('#init-pareto').textContent || '{}');
+    drawPareto(P0);
+    window.addEventListener('resize', ()=>{ if(lastPareto) drawPareto(lastPareto); });
+
+    timer = setInterval(poll, 10000);
+    poll();
+  })();
+  </script>
+</body>
+</html>

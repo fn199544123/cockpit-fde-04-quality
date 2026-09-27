@@ -1,0 +1,24 @@
+{% extends 'board/manage_base.html' %}
+{% block title %}台账总览{% endblock %}
+{% block body %}
+<style>
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .lcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+         padding:26px 24px;transition:.15s;display:block}
+  .lcard:hover{border-color:var(--accent);transform:translateY(-3px)}
+  .lcard .ic{font-size:34px;margin-bottom:12px}
+  .lcard .t{font-size:18px;font-weight:600;margin-bottom:10px}
+  .lcard .n{font-size:34px;font-weight:700;color:var(--accent)}
+  .lcard .n small{font-size:14px;color:var(--sub);font-weight:400;margin-left:6px}
+  @media(max-width:820px){.cards{grid-template-columns:1fr}}
+</style>
+<div class="cards">
+  {% for c in cards %}
+  <a class="lcard" href="{% url 'ledger_list' c.slug %}">
+    <div class="ic">{{ c.icon }}</div>
+    <div class="t">{{ c.title }}</div>
+    <div class="n">{{ c.count }}<small>条记录</small></div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,575 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>产线质检不良率看板</title>
+  <style>
+    :root{--bg:#0a0f1a;--panel:#111a2b;--line:#1e2b44;--txt:#e6eefc;--sub:#8aa0c6;
+          --good:#22c55e;--warn:#f59e0b;--bad:#ef4444;--accent:#38bdf8;}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:linear-gradient(160deg,#070b14,#0a0f1a);color:var(--txt);
+         font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:24px}
+    a{color:inherit}
+    header{display:flex;justify-content:space-between;align-items:center;gap:16px;
+           border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;flex-wrap:wrap}
+    header h1{font-size:26px;letter-spacing:2px}
+    header .sub{color:var(--sub);font-size:13px}
+    .nav a{border-radius:10px;padding:9px 16px;text-decoration:none;font-size:14px;border:1px solid var(--line)}
+    .nav a.primary{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:700}
+    .nav a.ghost{background:var(--panel);color:var(--accent)}
+    /* 控制条:时间窗 / 产线 / 实时状态 */
+    .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+    .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+    .seg a{padding:7px 14px;font-size:13px;text-decoration:none;color:var(--sub)}
+    .seg a.on{background:var(--accent);color:#04121f;font-weight:700}
+    .controls select{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+                     border-radius:10px;padding:7px 12px;font-size:13px}
+    .live{margin-left:auto;display:flex;align-items:center;gap:12px;color:var(--sub);font-size:12px}
+    .dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good);
+         display:inline-block;animation:pulse 1.6s infinite}
+    .dot.off{background:var(--sub);box-shadow:none;animation:none}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .live button{background:var(--panel);color:var(--accent);border:1px solid var(--line);
+                 border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
+    .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+    .card .label{color:var(--sub);font-size:13px;margin-bottom:8px}
+    .card .value{font-size:28px;font-weight:700}
+    .value.good{color:var(--good)}.value.warn{color:var(--warn)}.value.bad{color:var(--bad)}
+    .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:16px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+    .panel h2{font-size:16px;margin-bottom:6px;color:var(--accent);font-weight:600;
+              display:flex;justify-content:space-between;align-items:baseline}
+    .panel h2 .hint{color:var(--sub);font-size:12px;font-weight:400}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+    th{color:var(--sub);font-weight:500}
+    .bar{height:8px;border-radius:6px;background:#1b2740;overflow:hidden}
+    .bar>i{display:block;height:100%;transition:width .5s ease}
+    .bar>i.good{background:linear-gradient(90deg,#16a34a,#22c55e)}
+    .bar>i.warn{background:linear-gradient(90deg,#d97706,#f59e0b)}
+    .bar>i.bad{background:linear-gradient(90deg,#dc2626,#ef4444)}
+    .rate-tag{font-weight:700;font-size:13px}
+    .rate-tag.good{color:var(--good)}.rate-tag.warn{color:var(--warn)}.rate-tag.bad{color:var(--bad)}
+    .rank{display:inline-flex;width:22px;height:22px;border-radius:6px;align-items:center;
+          justify-content:center;font-size:12px;font-weight:700;background:#1b2740;color:var(--sub)}
+    .rank.top1{background:var(--bad);color:#fff}.rank.top2{background:var(--warn);color:#20130a}
+    .rank.top3{background:#3b82f6;color:#fff}
+    .sev{display:inline-block;font-size:11px;padding:1px 8px;border-radius:20px;border:1px solid}
+    .sev.critical{color:var(--bad);border-color:var(--bad)}
+    .sev.major{color:var(--warn);border-color:var(--warn)}
+    .sev.minor{color:var(--sub);border-color:var(--line)}
+    .dbar{height:6px;border-radius:4px;background:#1b2740;overflow:hidden;margin-top:5px}
+    .dbar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--bad));transition:width .5s ease}
+    .sev-split{display:flex;gap:8px;margin-top:14px}
+    .sev-box{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+    .sev-box .n{font-size:22px;font-weight:700}
+    .sev-box .t{font-size:12px;color:var(--sub)}
+    .empty{color:var(--sub);padding:20px 0}
+    footer{margin-top:22px;color:var(--sub);font-size:12px;text-align:center}
+    .flash{animation:flash .6s ease}
+    @keyframes flash{0%{background:rgba(56,189,248,.18)}100%{background:transparent}}
+    /* —— SPC 超阈值预警条(大屏高亮) —— */
+    .alertbar{border-radius:14px;padding:14px 18px;margin-bottom:18px;border:1px solid var(--line);
+              background:var(--panel);transition:background .4s,border-color .4s}
+    .alertbar .ab-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    .alertbar .ab-icon{font-size:22px;line-height:1}
+    .alertbar .ab-title{font-size:17px;font-weight:800;letter-spacing:1px}
+    .alertbar .ab-sub{color:var(--sub);font-size:12px}
+    .ab-counts{display:flex;gap:8px;margin-left:auto;align-items:center;flex-wrap:wrap}
+    .ab-pill{font-size:13px;font-weight:800;padding:4px 12px;border-radius:20px;border:1px solid var(--line)}
+    .ab-pill.crit{color:#fff;background:var(--bad);border-color:var(--bad)}
+    .ab-pill.warn{color:#20130a;background:var(--warn);border-color:var(--warn)}
+    .ab-pill.calm{color:#04121f;background:var(--good);border-color:var(--good)}
+    .ab-list{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .achip{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;
+           padding:9px 13px;background:#0d1526;min-width:230px}
+    .achip .who{font-weight:700;font-size:14px}
+    .achip .who small{display:block;color:var(--sub);font-size:11px;font-weight:400;margin-top:2px}
+    .achip .rt{margin-left:auto;text-align:right}
+    .achip .rt b{font-size:20px;font-weight:800;display:block;line-height:1}
+    .achip .rt small{color:var(--sub);font-size:11px}
+    .achip .tags{display:flex;gap:5px;flex-wrap:wrap}
+    .atag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap}
+    .atag.spc{color:#fff;background:#7c3aed}
+    .atag.over_bad{color:#fff;background:var(--bad)}
+    .atag.over_warn{color:#20130a;background:var(--warn)}
+    .achip.critical{border-color:var(--bad);box-shadow:0 0 0 1px rgba(239,68,68,.35) inset}
+    .achip.warning{border-color:var(--warn)}
+    .alertbar[data-status="red"]{background:linear-gradient(120deg,rgba(239,68,68,.16),rgba(124,58,237,.10));
+              border-color:var(--bad);animation:alertpulse 1.8s infinite}
+    .alertbar[data-status="amber"]{background:linear-gradient(120deg,rgba(245,158,11,.14),transparent);
+              border-color:var(--warn)}
+    .alertbar[data-status="calm"]{border-color:var(--good)}
+    @keyframes alertpulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.0)}
+                          50%{box-shadow:0 0 22px 2px rgba(239,68,68,.35)}}
+    .ab-empty{color:var(--good);font-size:13px;margin-top:6px}
+    /* —— 不良率趋势折线(全宽大图,原生 canvas) —— */
+    .trend{margin-bottom:16px}
+    .trend h2{font-size:16px;margin-bottom:10px;color:var(--accent);font-weight:600;
+              display:flex;justify-content:space-between;align-items:baseline}
+    .trend h2 .hint{color:var(--sub);font-size:12px;font-weight:400}
+    .trend .canvas-wrap{position:relative;width:100%;height:200px}
+    .trend canvas{width:100%;height:100%;display:block}
+    .legend{display:flex;gap:16px;color:var(--sub);font-size:12px;margin-top:8px}
+    .legend i{display:inline-block;width:22px;height:3px;border-radius:2px;
+              vertical-align:middle;margin-right:6px}
+    .legend i.rate{background:var(--accent)}
+    .legend i.warn{background:var(--warn)}
+    .legend i.bad{background:var(--bad)}
+    /* —— 结构占比环图 + 各工位对比柱状(手写 SVG) —— */
+    .charts{display:grid;grid-template-columns:1fr 1.5fr;gap:16px;margin-bottom:16px}
+    .donut-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:6px}
+    .donut-wrap svg{width:196px;height:196px;flex:0 0 auto}
+    .donut-legend{display:flex;flex-direction:column;gap:11px;flex:1;min-width:150px}
+    .dleg{display:flex;align-items:center;gap:10px;font-size:13px}
+    .dleg .sw{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+    .dleg .nm{color:var(--txt)}
+    .dleg .vl{margin-left:auto;color:var(--sub)}
+    .dleg .vl b{color:var(--txt)}
+    .bars-wrap{width:100%;height:232px}
+    .bars-wrap svg{width:100%;height:100%;display:block}
+    @media(max-width:960px){.charts{grid-template-columns:1fr}}
+  </style>
+</head>
+<body data-window="{{ window }}" data-line="{{ line }}">
+  <header>
+    <h1>产线质检不良率看板</h1>
+    <div class="nav" style="display:flex;align-items:center;gap:12px">
+      <a class="primary" href="/capture/">⚡ 快速录入</a>
+      <a class="ghost" href="/trace/">🔎 班次追溯·帕累托</a>
+      <a class="ghost" href="/capture/records/">📋 质检流水</a>
+      <a class="ghost" href="/manage/">⚙ 基础台账管理</a>
+      <div class="sub">某企业 · 演示数据(全脱敏) · 端口 18804</div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <span class="sub">时间窗</span>
+    <div class="seg">
+      {% for key, label in windows %}
+        <a class="{% if key == window %}on{% endif %}"
+           href="?window={{ key }}{% if line %}&line={{ line }}{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    {% if lines %}
+    <span class="sub" style="margin-left:8px">产线</span>
+    <select onchange="location.href='?window={{ window }}'+(this.value?'&line='+encodeURIComponent(this.value):'')">
+      <option value="">全部产线</option>
+      {% for ln in lines %}
+        <option value="{{ ln }}" {% if ln == line %}selected{% endif %}>{{ ln }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <div class="live">
+      <span>更新于 <b id="ts">{{ generated_at }}</b></span>
+      <span><span class="dot" id="dot"></span> 实时</span>
+      <button id="toggle">暂停</button>
+    </div>
+  </div>
+
+  <section class="alertbar" id="alertbar" data-status="{{ alerts.status }}">
+    <div class="ab-top">
+      <span class="ab-icon">{% if alerts.status == 'red' %}🚨{% elif alerts.status == 'amber' %}⚠️{% else %}✅{% endif %}</span>
+      <span class="ab-title">SPC 超阈值预警</span>
+      <span class="ab-sub">中心线 p̄=<b id="ab-center">{{ alerts.center }}</b>% · 超预警线({{ thresholds.bad }}%)/超3σ控制上限 自动预警</span>
+      <span class="ab-counts" id="ab-counts">
+        {% if alerts.count %}
+          {% if alerts.critical %}<span class="ab-pill crit">失控/超标 {{ alerts.critical }}</span>{% endif %}
+          {% if alerts.warning %}<span class="ab-pill warn">关注 {{ alerts.warning }}</span>{% endif %}
+        {% else %}
+          <span class="ab-pill calm">全部受控 0</span>
+        {% endif %}
+      </span>
+    </div>
+    <div class="ab-list" id="ab-list">
+      {% for a in alerts.items %}
+      <div class="achip {{ a.severity }}">
+        <div class="who">{{ a.station }}<small>{{ a.code }} · {{ a.operator|default:"—" }} · 检{{ a.n }}/不良{{ a.bad }}</small>
+          <div class="tags" style="margin-top:6px">
+            {% for r in a.reasons %}<span class="atag {{ r.type }}">{{ r.label }}</span>{% endfor %}
+          </div>
+        </div>
+        <div class="rt"><b class="value {% if a.severity == 'critical' %}bad{% else %}warn{% endif %}">{{ a.rate }}%</b>
+          <small>UCL {{ a.ucl|default:"—" }}%</small></div>
+      </div>
+      {% empty %}
+      <div class="ab-empty">✓ 各工位不良率均在控制限内、未超阈值,产线运行受控。</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="kpis">
+    <div class="card"><div class="label">总检验数</div><div class="value" id="k-total">{{ total }}</div></div>
+    <div class="card"><div class="label">合格数</div><div class="value good" id="k-good">{{ good }}</div></div>
+    <div class="card"><div class="label">不良数</div><div class="value bad" id="k-bad">{{ bad }}</div></div>
+    <div class="card"><div class="label">综合不良率</div>
+      <div class="value {{ rate_level }}" id="k-rate">{{ rate }}%</div></div>
+    <div class="card"><div class="label">缺陷种类</div><div class="value" id="k-kinds">{{ defect_kind_count }}</div></div>
+    <div class="card"><div class="label">批次 / 工位</div>
+      <div class="value">{{ batch_count }} / <span id="k-stations">{{ station_count }}</span></div></div>
+  </section>
+
+  <section class="panel trend">
+    <h2>不良率趋势
+      <span class="hint">近 14 天逐日 · 综合不良率{% if line %} · {{ line }}{% endif %}</span></h2>
+    <div class="canvas-wrap"><canvas id="trend-canvas"></canvas></div>
+    <div class="legend">
+      <span><i class="rate"></i>逐日不良率</span>
+      <span><i class="warn"></i>关注线 {{ thresholds.warn }}%</span>
+      <span><i class="bad"></i>预警线 {{ thresholds.bad }}%</span>
+    </div>
+  </section>
+  {{ trend|json_script:"trend-init" }}
+  {{ thresholds|json_script:"thresholds-init" }}
+
+  <section class="charts">
+    <div class="panel">
+      <h2>缺陷严重度结构<span class="hint">环图 · 占全部不良比重</span></h2>
+      <div class="donut-wrap">
+        <svg id="donut" viewBox="0 0 200 200" aria-label="缺陷严重度结构环图"></svg>
+        <div class="donut-legend" id="donut-legend"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>各工位不良率对比<span class="hint">柱状 · 关注/预警阈值线 · 高到低</span></h2>
+      <div class="bars-wrap" id="bars-wrap"><svg id="bars" aria-label="各工位不良率对比柱状图"></svg></div>
+    </div>
+  </section>
+  {{ severity|json_script:"severity-init" }}
+  {{ stations|json_script:"stations-init" }}
+
+  <div class="grid">
+    <div class="panel">
+      <h2>各工位不良率<span class="hint">高到低 · 阈值 良≤{{ thresholds.warn }}% · 关注≤{{ thresholds.bad }}%</span></h2>
+      <table>
+        <thead><tr><th>工位</th><th>负责师傅</th><th>检验/不良</th><th style="width:34%">不良率</th></tr></thead>
+        <tbody id="stations">
+        {% for s in stations %}
+          <tr>
+            <td>{{ s.name }}<br><span class="sub" style="font-size:12px">{{ s.code }}</span></td>
+            <td>{{ s.operator|default:"—" }}</td>
+            <td>{{ s.total }} / {{ s.bad }}</td>
+            <td>
+              <div class="bar"><i class="{{ s.level }}" style="width:{{ s.rate }}%"></i></div>
+              <span class="rate-tag {{ s.level }}">{{ s.rate }}%</span>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">暂无工位数据,请先运行 scripts/seed_demo.py 或在 /manage 录入。</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>缺陷 TOP 排行<span class="hint">占全部不良比重</span></h2>
+      <table>
+        <tbody id="defects">
+        {% for d in defects %}
+          <tr>
+            <td style="width:26px"><span class="rank {% if forloop.counter == 1 %}top1{% elif forloop.counter == 2 %}top2{% elif forloop.counter == 3 %}top3{% endif %}">{{ forloop.counter }}</span></td>
+            <td>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span>{{ d.name }} <span class="sev {{ d.severity }}">{{ d.severity_display }}</span></span>
+                <span style="color:var(--sub);font-size:13px"><b style="color:var(--txt)">{{ d.n }}</b> · {{ d.share }}%</span>
+              </div>
+              <div class="dbar"><i style="width:{{ d.share }}%"></i></div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td class="empty">暂无缺陷记录。</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="sev-split" id="severity">
+        {% for sv in severity %}
+        <div class="sev-box">
+          <div class="n {% if sv.key == 'critical' %}bad{% elif sv.key == 'major' %}warn{% else %}good{% endif %}">{{ sv.n }}</div>
+          <div class="t">{{ sv.label }} · {{ sv.share }}%</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <footer>数据均为虚构演示 · 一句话开发 · 产线质检不良率看板 · 每 10 秒实时刷新</footer>
+
+  <script>
+  (function(){
+    var body = document.body;
+    var WINDOW = body.dataset.window || 'all';
+    var LINE = body.dataset.line || '';
+    var live = true, timer = null;
+    var INTERVAL = 10000;
+
+    function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+    function rankCls(i){return i===1?'top1':i===2?'top2':i===3?'top3':'';}
+
+    function renderStations(list){
+      var tb = document.getElementById('stations');
+      if(!list.length){tb.innerHTML='<tr><td colspan="4" class="empty">暂无工位数据。</td></tr>';return;}
+      tb.innerHTML = list.map(function(s){
+        return '<tr><td>'+esc(s.name)+'<br><span class="sub" style="font-size:12px">'+esc(s.code)+'</span></td>'+
+          '<td>'+esc(s.operator||'—')+'</td>'+
+          '<td>'+s.total+' / '+s.bad+'</td>'+
+          '<td><div class="bar"><i class="'+s.level+'" style="width:'+s.rate+'%"></i></div>'+
+          '<span class="rate-tag '+s.level+'">'+s.rate+'%</span></td></tr>';
+      }).join('');
+    }
+
+    function renderDefects(list){
+      var tb = document.getElementById('defects');
+      if(!list.length){tb.innerHTML='<tr><td class="empty">暂无缺陷记录。</td></tr>';return;}
+      tb.innerHTML = list.map(function(d,i){
+        var n=i+1;
+        return '<tr><td style="width:26px"><span class="rank '+rankCls(n)+'">'+n+'</span></td>'+
+          '<td><div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<span>'+esc(d.name)+' <span class="sev '+d.severity+'">'+esc(d.severity_display)+'</span></span>'+
+          '<span style="color:var(--sub);font-size:13px"><b style="color:var(--txt)">'+d.n+'</b> · '+d.share+'%</span></div>'+
+          '<div class="dbar"><i style="width:'+d.share+'%"></i></div></td></tr>';
+      }).join('');
+    }
+
+    function renderSeverity(list){
+      var box = document.getElementById('severity');
+      box.innerHTML = list.map(function(sv){
+        var cls = sv.key==='critical'?'bad':sv.key==='major'?'warn':'good';
+        return '<div class="sev-box"><div class="n '+cls+'">'+sv.n+'</div>'+
+          '<div class="t">'+esc(sv.label)+' · '+sv.share+'%</div></div>';
+      }).join('');
+    }
+
+    function renderAlerts(a){
+      if(!a){return;}
+      var bar=document.getElementById('alertbar');
+      bar.dataset.status=a.status;
+      var icon=bar.querySelector('.ab-icon');
+      if(icon){icon.textContent=a.status==='red'?'🚨':a.status==='amber'?'⚠️':'✅';}
+      var ctr=document.getElementById('ab-center'); if(ctr)ctr.textContent=a.center;
+      var counts=document.getElementById('ab-counts');
+      if(a.count){
+        var h='';
+        if(a.critical){h+='<span class="ab-pill crit">失控/超标 '+a.critical+'</span>';}
+        if(a.warning){h+='<span class="ab-pill warn">关注 '+a.warning+'</span>';}
+        counts.innerHTML=h;
+      } else {
+        counts.innerHTML='<span class="ab-pill calm">全部受控 0</span>';
+      }
+      var list=document.getElementById('ab-list');
+      if(!a.items.length){
+        list.innerHTML='<div class="ab-empty">✓ 各工位不良率均在控制限内、未超阈值,产线运行受控。</div>';
+        return;
+      }
+      list.innerHTML=a.items.map(function(it){
+        var tags=it.reasons.map(function(r){return '<span class="atag '+r.type+'">'+esc(r.label)+'</span>';}).join('');
+        var rc=it.severity==='critical'?'bad':'warn';
+        return '<div class="achip '+it.severity+'"><div class="who">'+esc(it.station)+
+          '<small>'+esc(it.code)+' · '+esc(it.operator||'—')+' · 检'+it.n+'/不良'+it.bad+'</small>'+
+          '<div class="tags" style="margin-top:6px">'+tags+'</div></div>'+
+          '<div class="rt"><b class="value '+rc+'">'+it.rate+'%</b>'+
+          '<small>UCL '+(it.ucl==null?'—':it.ucl)+'%</small></div></div>';
+      }).join('');
+    }
+
+    var THRESH = JSON.parse(document.getElementById('thresholds-init').textContent);
+
+    function cssv(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+
+    // —— 结构占比环图(SVG,stroke-dasharray 拼扇区) ——
+    function renderDonut(list){
+      var svg=document.getElementById('donut'); if(!svg)return;
+      var colors={critical:cssv('--bad')||'#ef4444',major:cssv('--warn')||'#f59e0b',minor:cssv('--good')||'#22c55e'};
+      var accent=cssv('--accent')||'#38bdf8', txt=cssv('--txt')||'#e6eefc', sub=cssv('--sub')||'#8aa0c6';
+      var total=list.reduce(function(a,s){return a+(s.n||0);},0);
+      var r=72, sw=26, C=2*Math.PI*r, p=[];
+      p.push('<circle cx="100" cy="100" r="'+r+'" fill="none" stroke="#1b2740" stroke-width="'+sw+'"/>');
+      var acc=0;
+      if(total>0){
+        list.forEach(function(s){
+          if(!s.n)return;
+          var len=C*(s.n/total), startDeg=360*acc/C;
+          var col=colors[s.key]||accent;
+          p.push('<circle cx="100" cy="100" r="'+r+'" fill="none" stroke="'+col+'" stroke-width="'+sw+'" '+
+            'stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" '+
+            'transform="rotate('+(startDeg-90).toFixed(2)+' 100 100)"/>');
+          acc+=len;
+        });
+      }
+      p.push('<text x="100" y="94" text-anchor="middle" fill="'+txt+'" font-size="34" font-weight="800">'+total+'</text>');
+      p.push('<text x="100" y="120" text-anchor="middle" fill="'+sub+'" font-size="13">不良总数</text>');
+      svg.innerHTML=p.join('');
+      var lg=document.getElementById('donut-legend');
+      lg.innerHTML=list.map(function(s){
+        var col=colors[s.key]||accent;
+        return '<div class="dleg"><span class="sw" style="background:'+col+'"></span>'+
+          '<span class="nm">'+esc(s.label)+'</span>'+
+          '<span class="vl"><b>'+(s.n||0)+'</b> · '+s.share+'%</span></div>';
+      }).join('');
+    }
+
+    // —— 各工位不良率对比柱状(SVG,阈值线) ——
+    var lastStations=[];
+    function renderBars(list){
+      var wrap=document.getElementById('bars-wrap'), svg=document.getElementById('bars');
+      if(!wrap||!svg)return;
+      lastStations=list;
+      var top=list.slice(0,10);   // 已按不良率降序
+      var W=wrap.clientWidth||600, H=232;
+      svg.setAttribute('viewBox','0 0 '+W+' '+H);
+      var padL=40,padR=14,padT=22,padB=48, iw=W-padL-padR, ih=H-padT-padB;
+      var cLine=cssv('--line')||'#1e2b44', cSub=cssv('--sub')||'#8aa0c6';
+      var cWarn=cssv('--warn')||'#f59e0b', cBad=cssv('--bad')||'#ef4444', cGood=cssv('--good')||'#22c55e';
+      var maxR=Math.max(THRESH.bad,1);
+      top.forEach(function(s){ if(s.rate>maxR)maxR=s.rate; });
+      maxR=Math.ceil(maxR*1.15)||1;
+      function Y(v){ return padT+ih-ih*Math.min(v,maxR)/maxR; }
+      var p=[];
+      for(var t=0;t<=4;t++){ var val=maxR*t/4, y=Y(val);
+        p.push('<line x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(1)+'" stroke="'+cLine+'" stroke-opacity=".5"/>');
+        p.push('<text x="'+(padL-6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" fill="'+cSub+'" font-size="11">'+val.toFixed(0)+'%</text>');
+      }
+      [{v:THRESH.warn,c:cWarn},{v:THRESH.bad,c:cBad}].forEach(function(th){
+        if(th.v>maxR)return; var y=Y(th.v);
+        p.push('<line x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(1)+'" stroke="'+th.c+'" stroke-width="1.4" stroke-dasharray="5 4" stroke-opacity=".75"/>');
+      });
+      if(top.length){
+        var slot=iw/top.length, bw=Math.min(46,slot*0.62);
+        top.forEach(function(s,i){
+          var cx=padL+slot*(i+0.5), y=Y(s.rate), h=Math.max(padT+ih-y,0);
+          var col=s.level==='bad'?cBad:s.level==='warn'?cWarn:cGood;
+          p.push('<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="4" fill="'+col+'"/>');
+          p.push('<text x="'+cx.toFixed(1)+'" y="'+(y-6).toFixed(1)+'" text-anchor="middle" fill="'+col+'" font-size="12" font-weight="700">'+s.rate+'%</text>');
+          var nm=(s.name||'').length>6?s.name.slice(0,6):(s.name||'');
+          p.push('<text x="'+cx.toFixed(1)+'" y="'+(padT+ih+16)+'" text-anchor="middle" fill="'+cSub+'" font-size="11">'+esc(nm)+'</text>');
+          p.push('<text x="'+cx.toFixed(1)+'" y="'+(padT+ih+31)+'" text-anchor="middle" fill="'+cSub+'" font-size="10" opacity=".7">'+esc(s.code||'')+'</text>');
+        });
+      } else {
+        p.push('<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" fill="'+cSub+'" font-size="13">暂无工位数据</text>');
+      }
+      svg.innerHTML=p.join('');
+    }
+
+    function drawTrend(points){
+      var cv=document.getElementById('trend-canvas'); if(!cv)return;
+      var wrap=cv.parentNode, dpr=window.devicePixelRatio||1;
+      var W=wrap.clientWidth, H=wrap.clientHeight;
+      cv.width=W*dpr; cv.height=H*dpr;
+      var g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+      g.clearRect(0,0,W,H);
+      var padL=40,padR=14,padT=14,padB=26;
+      var iw=W-padL-padR, ih=H-padT-padB;
+      var css=getComputedStyle(document.documentElement);
+      var cLine=css.getPropertyValue('--line').trim()||'#1e2b44';
+      var cSub=css.getPropertyValue('--sub').trim()||'#8aa0c6';
+      var cAcc=css.getPropertyValue('--accent').trim()||'#38bdf8';
+      var cWarn=css.getPropertyValue('--warn').trim()||'#f59e0b';
+      var cBad=css.getPropertyValue('--bad').trim()||'#ef4444';
+      var maxRate=Math.max(THRESH.bad, 1);
+      points.forEach(function(p){ if(p.rate>maxRate)maxRate=p.rate; });
+      maxRate=Math.ceil(maxRate*1.15);
+      function X(i){ return points.length<2?padL+iw/2:padL+iw*i/(points.length-1); }
+      function Y(v){ return padT+ih-ih*Math.min(v,maxRate)/maxRate; }
+      // 网格 + Y 刻度
+      g.font='11px "Segoe UI",sans-serif'; g.textBaseline='middle';
+      g.strokeStyle=cLine; g.fillStyle=cSub; g.lineWidth=1;
+      for(var t=0;t<=4;t++){
+        var val=maxRate*t/4, y=Y(val);
+        g.globalAlpha=.5; g.beginPath(); g.moveTo(padL,y); g.lineTo(W-padR,y); g.stroke(); g.globalAlpha=1;
+        g.textAlign='right'; g.fillText(val.toFixed(0)+'%',padL-6,y);
+      }
+      // 阈值线
+      function hline(v,color){ if(v>maxRate)return; var y=Y(v);
+        g.strokeStyle=color; g.globalAlpha=.7; g.setLineDash([5,4]); g.lineWidth=1.4;
+        g.beginPath(); g.moveTo(padL,y); g.lineTo(W-padR,y); g.stroke();
+        g.setLineDash([]); g.globalAlpha=1; }
+      hline(THRESH.warn,cWarn); hline(THRESH.bad,cBad);
+      // 面积 + 折线
+      if(points.length){
+        g.beginPath();
+        points.forEach(function(p,i){ var x=X(i),y=Y(p.rate); i?g.lineTo(x,y):g.moveTo(x,y); });
+        var grad=g.createLinearGradient(0,padT,0,padT+ih);
+        grad.addColorStop(0,'rgba(56,189,248,.28)'); grad.addColorStop(1,'rgba(56,189,248,0)');
+        g.lineTo(X(points.length-1),padT+ih); g.lineTo(X(0),padT+ih); g.closePath();
+        g.fillStyle=grad; g.fill();
+        g.beginPath();
+        points.forEach(function(p,i){ var x=X(i),y=Y(p.rate); i?g.lineTo(x,y):g.moveTo(x,y); });
+        g.strokeStyle=cAcc; g.lineWidth=2.4; g.lineJoin='round'; g.stroke();
+        // 数据点(按等级上色)
+        points.forEach(function(p,i){
+          var x=X(i),y=Y(p.rate);
+          var c=p.level==='bad'?cBad:p.level==='warn'?cWarn:cAcc;
+          g.beginPath(); g.arc(x,y,p.total?3.2:2,0,Math.PI*2);
+          g.fillStyle=c; g.fill(); g.strokeStyle='#0a0f1a'; g.lineWidth=1.5; g.stroke();
+        });
+        // 末点数值气泡
+        var last=points[points.length-1], lx=X(points.length-1), ly=Y(last.rate);
+        var lbl=last.rate+'%';
+        g.font='bold 12px "Segoe UI",sans-serif'; g.textAlign='center'; g.textBaseline='bottom';
+        g.fillStyle=last.level==='bad'?cBad:last.level==='warn'?cWarn:cAcc;
+        g.fillText(lbl, Math.min(lx,W-padR-14), ly-8);
+        // X 轴日期(稀疏,避免拥挤)
+        g.fillStyle=cSub; g.font='11px "Segoe UI",sans-serif'; g.textBaseline='top';
+        var step=Math.ceil(points.length/7);
+        points.forEach(function(p,i){
+          if(i%step!==0 && i!==points.length-1)return;
+          g.textAlign = i===0?'left':(i===points.length-1?'right':'center');
+          g.fillText(p.date, X(i), padT+ih+7);
+        });
+      }
+    }
+
+    function setVal(id, v){
+      var el=document.getElementById(id); if(!el)return;
+      if(el.textContent!==String(v)){el.textContent=v;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
+    }
+
+    function refresh(){
+      var url='/api/stats/?window='+encodeURIComponent(WINDOW)+(LINE?'&line='+encodeURIComponent(LINE):'');
+      fetch(url,{headers:{'X-Requested-With':'fetch'}}).then(function(r){return r.json();}).then(function(d){
+        setVal('k-total', d.total);
+        setVal('k-good', d.good);
+        setVal('k-bad', d.bad);
+        var rc=document.getElementById('k-rate'); rc.className='value '+d.rate_level; setVal('k-rate', d.rate+'%');
+        setVal('k-kinds', d.defect_kind_count);
+        setVal('k-stations', d.station_count);
+        renderAlerts(d.alerts);
+        renderStations(d.stations);
+        renderDefects(d.defects);
+        renderSeverity(d.severity);
+        renderDonut(d.severity);
+        renderBars(d.stations);
+        if(d.trend){ lastTrend=d.trend; drawTrend(lastTrend); }
+        document.getElementById('ts').textContent = d.generated_at;
+      }).catch(function(){/* 网络抖动忽略,下一轮再试 */});
+    }
+
+    function start(){ if(timer)clearInterval(timer); timer=setInterval(refresh, INTERVAL); }
+
+    document.getElementById('toggle').addEventListener('click', function(){
+      live=!live;
+      this.textContent = live?'暂停':'继续';
+      document.getElementById('dot').classList.toggle('off', !live);
+      if(live){refresh();start();} else if(timer){clearInterval(timer);timer=null;}
+    });
+
+    // 首屏用服务端注入的数据先画一次,再随轮询更新;窗口尺寸变化重绘
+    var lastTrend = JSON.parse(document.getElementById('trend-init').textContent);
+    drawTrend(lastTrend);
+    renderDonut(JSON.parse(document.getElementById('severity-init').textContent));
+    renderBars(JSON.parse(document.getElementById('stations-init').textContent));
+    var rzTimer=null;
+    window.addEventListener('resize', function(){
+      clearTimeout(rzTimer); rzTimer=setTimeout(function(){
+        drawTrend(lastTrend); renderBars(lastStations);
+      }, 150);
+    });
+
+    start();
+  })();
+  </script>
+</body>
+</html>

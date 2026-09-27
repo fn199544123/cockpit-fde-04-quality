@@ -1,0 +1,118 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>质检流水 · 产线质检看板</title>
+  <style>
+    :root{--bg:#0a0f1a;--panel:#111a2b;--line:#1e2b44;--txt:#e6eefc;--sub:#8aa0c6;
+          --good:#22c55e;--warn:#f59e0b;--bad:#ef4444;--accent:#38bdf8;}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:linear-gradient(160deg,#070b14,#0a0f1a);color:var(--txt);
+         font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:24px}
+    a{color:inherit;text-decoration:none}
+    header{display:flex;justify-content:space-between;align-items:center;
+           border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px}
+    header h1{font-size:24px;letter-spacing:2px}
+    header .sub{color:var(--sub);font-size:13px}
+    nav{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+    nav a{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+          padding:9px 16px;font-size:14px;color:var(--sub);transition:.15s}
+    nav a:hover{border-color:var(--accent);color:var(--txt)}
+    nav a.active{color:var(--txt);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .filters input{background:#0c1424;border:1px solid var(--line);border-radius:9px;color:var(--txt);
+         padding:9px 12px;font-size:14px;width:260px}
+    .filters input:focus{outline:none;border-color:var(--accent)}
+    .seg{display:flex;gap:6px}
+    .seg a{background:#0c1424;border:1px solid var(--line);border-radius:9px;padding:9px 14px;font-size:13px;color:var(--sub)}
+    .seg a.on{color:var(--txt);border-color:var(--accent)}
+    .btn{display:inline-block;background:var(--accent);color:#04121f;border:none;border-radius:9px;
+         padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer}
+    .btn.ghost{background:transparent;color:var(--sub);border:1px solid var(--line);font-weight:500}
+    .count-pill{background:#0c1424;border:1px solid var(--line);border-radius:20px;padding:3px 12px;font-size:12px;color:var(--sub)}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{text-align:left;padding:10px 10px;border-bottom:1px solid var(--line)}
+    th{color:var(--sub);font-weight:500}
+    tbody tr:hover{background:#0e1626}
+    .tag{display:inline-block;border-radius:6px;padding:1px 8px;font-size:12px}
+    .tag.g{background:rgba(34,197,94,.15);color:var(--good)}
+    .tag.b{background:rgba(239,68,68,.15);color:var(--bad)}
+    .empty{color:var(--sub);padding:26px 0;text-align:center}
+    .pager{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:18px;color:var(--sub);font-size:13px}
+    .pager a{background:#0c1424;border:1px solid var(--line);border-radius:8px;padding:7px 14px;color:var(--sub)}
+    .pager a:hover{border-color:var(--accent);color:var(--txt)}
+    footer{margin-top:28px;color:var(--sub);font-size:12px;text-align:center}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>质检流水</h1>
+    <div class="sub">某企业 · 演示数据(全脱敏) · 端口 18804</div>
+  </header>
+
+  <nav>
+    <a href="{% url 'dashboard' %}">← 大屏看板</a>
+    <a href="{% url 'capture' %}">⚡ 快速录入</a>
+    <a href="{% url 'records' %}" class="active">📋 质检流水</a>
+    <a href="{% url 'ledger_index' %}">⚙ 基础台账</a>
+  </nav>
+
+  <section class="panel">
+    <div class="toolbar">
+      <form class="filters" method="get" action="{% url 'records' %}">
+        <input type="text" name="q" value="{{ q }}" placeholder="搜批次 / 工位 / 缺陷 / 编号 / 质检员">
+        {% if verdict %}<input type="hidden" name="v" value="{{ verdict }}">{% endif %}
+        <button class="btn" type="submit">搜索</button>
+        {% if q %}<a class="btn ghost" href="{% url 'records' %}{% if verdict %}?v={{ verdict }}{% endif %}">清空</a>{% endif %}
+      </form>
+      <div class="filters">
+        <div class="seg">
+          <a href="?{% if q %}q={{ q }}{% endif %}" class="{% if not verdict %}on{% endif %}">全部</a>
+          <a href="?v=good{% if q %}&q={{ q }}{% endif %}" class="{% if verdict == 'good' %}on{% endif %}">合格</a>
+          <a href="?v=bad{% if q %}&q={{ q }}{% endif %}" class="{% if verdict == 'bad' %}on{% endif %}">不良</a>
+        </div>
+        <span class="count-pill">共 {{ total }} 条</span>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th>检验时间</th><th>批次</th><th>工位</th><th>判定</th><th>缺陷</th>
+        <th>数量</th><th>编号</th><th>质检员</th>
+      </tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.time }}</td><td>{{ r.batch }}</td><td>{{ r.station }}</td>
+          <td>{% if r.qualified %}<span class="tag g">合格</span>{% else %}<span class="tag b">不良</span>{% endif %}</td>
+          <td>{{ r.defect|default:"—" }}</td>
+          <td>{{ r.quantity }}</td>
+          <td>{{ r.serial|default:"—" }}</td>
+          <td>{{ r.inspector|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="empty">没有符合条件的记录。去 <a href="{% url 'capture' %}" style="color:var(--accent)">快速录入</a> 一条?</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if page.paginator.num_pages > 1 %}
+    <div class="pager">
+      {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if verdict %}&v={{ verdict }}{% endif %}">← 上一页</a>
+      {% endif %}
+      <span>第 {{ page.number }} / {{ page.paginator.num_pages }} 页</span>
+      {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if verdict %}&v={{ verdict }}{% endif %}">下一页 →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <footer>数据均为虚构演示 · 一句话开发 · 产线质检不良率看板</footer>
+</body>
+</html>
